@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 from pipeline import (Images, labels, read_manifest, build_model, mask_payload,
                       load_bundle, TASKS, split_table, regression_metrics, ensure_held_out)
+from export_pretrained import export_bundle
 
 
 class Contracts(unittest.TestCase):
@@ -81,6 +82,26 @@ class Contracts(unittest.TestCase):
         self.assertEqual(result['r2'], 0)
         self.assertIsNone(result['pearson_r'])
         self.assertAlmostEqual(regression_metrics(y, y, ['Width'])['Width']['pearson_r'], 1)
+
+    def test_public_export_preserves_predictions_without_subject_metadata(self):
+        arch = dict(patch_size=16, depth=2, embed_dim=16, num_heads=2)
+        model = build_model(64, 1, arch).eval()
+        b = dict(format_version=1, task='width', targets=['Width'], architecture=arch,
+                 state_dict=model.state_dict(), shift_index=torch.arange(64),
+                 train_mean=torch.zeros(1), train_std=torch.ones(1), train_ids=['private_subject'],
+                 validation_ids=['private_validation'], train_images=['/private/image'],
+                 validation_images=['/private/validation'], **mask_payload(self.mask))
+        private, public = self.root / 'private.pt', self.root / 'public.pt'
+        torch.save(b, private)
+        exported = export_bundle(private, public, 'ukb')
+        for key in ['train_ids', 'validation_ids', 'train_images', 'validation_images']:
+            self.assertNotIn(key, exported)
+        _, reloaded, _ = load_bundle(public, 'cpu')
+        with torch.inference_mode():
+            x = torch.randn(2, 1, 64)
+            torch.testing.assert_close(model([x])[0], reloaded([x])[0], rtol=0, atol=0)
+        with self.assertRaisesRegex(ValueError, 'Public pretrained'):
+            ensure_held_out(self.table, exported)
 
 
 if __name__ == '__main__':

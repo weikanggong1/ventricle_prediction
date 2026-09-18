@@ -3,10 +3,11 @@ test_checkpoint_reload_and_permutation (test_pipeline.Contracts.test_checkpoint_
 test_invalid_images (test_pipeline.Contracts.test_invalid_images) ... ok
 test_metrics (test_pipeline.Contracts.test_metrics) ... ok
 test_normalization_and_grid (test_pipeline.Contracts.test_normalization_and_grid) ... ok
+test_public_export_preserves_predictions_without_subject_metadata (test_pipeline.Contracts.test_public_export_preserves_predictions_without_subject_metadata) ... ok
 test_split_and_holdout (test_pipeline.Contracts.test_split_and_holdout) ... ok
 
 ----------------------------------------------------------------------
-Ran 6 tests in 1.367s
+Ran 7 tests in 1.448s
 
 OK
 attention mode is flash

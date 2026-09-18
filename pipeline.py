@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 import random
+import time
 
 import nibabel as nib
 import numpy as np
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parent
 TASKS = {'masked': ['EI', 'z-EI', 'BVR_AC', 'BVR_PC'], 'width': ['Width']}
 MASKS = {'masked': 'all_ven.nii.gz', 'width': 'inf_ven.nii.gz'}
 ARCH = dict(patch_size=256, depth=18, embed_dim=128, num_heads=8)
+SMALL_ARCH = dict(patch_size=512, depth=4, embed_dim=64, num_heads=4)
 
 
 def read_manifest(path):
@@ -67,6 +69,8 @@ def regression_metrics(truth, pred, names):
 
 
 def ensure_held_out(table, bundle):
+    if bundle.get('inference_only'):
+        raise ValueError('Public pretrained bundles omit subject identifiers. Use predict; evaluate requires a private training bundle for overlap checks.')
     used_ids = set(bundle['train_ids'] + bundle['validation_ids'])
     used_images = set(bundle['train_images'] + bundle['validation_images'])
     if used_ids.intersection(table.eid) or used_images.intersection(table.image):
@@ -94,6 +98,7 @@ class Images(Dataset):
         self.mask = mask_image.get_fdata() > 0
         self.affine = mask_image.affine
         self.targets = targets
+        self.cached = None
         if not self.mask.any():
             raise ValueError('Empty mask.')
 
@@ -101,6 +106,9 @@ class Images(Dataset):
         return len(self.table)
 
     def __getitem__(self, index):
+        if self.cached is not None:
+            y = self.targets[index].astype(np.float32)
+            return torch.from_numpy(self.cached[index]).unsqueeze(0), torch.from_numpy(y), index
         path = self.table.iloc[index].image
         img = nib.load(path)
         if img.shape != self.mask.shape or not np.allclose(img.affine, self.affine, atol=1e-4, rtol=0):
@@ -210,6 +218,7 @@ def train(args):
     table = split_table(table)
     ti = np.flatnonzero(table['split'] == 'train')
     vi = np.flatnonzero(table['split'] == 'val')
+    arch = SMALL_ARCH if args.model_size == 'small' else ARCH
     for task in (TASKS if args.task == 'all' else [args.task]):
         random.seed(args.seed); np.random.seed(args.seed); torch.manual_seed(args.seed)
         torch.cuda.manual_seed_all(args.seed)
@@ -234,10 +243,17 @@ def train(args):
         r = np.abs(BWAS_correlation(features, y[ti].astype(np.float32).astype(np.float64))).mean(axis=1)
         if not np.isfinite(r).all():
             raise ValueError('Undefined voxel/target correlation; check constant training voxels.')
-        order = np.argsort(r); del features
+        order = np.argsort(r)
+        # Avoid decompressing every NIfTI again at every CPU-training epoch.
+        ds.cached = features.astype(np.float32)
+        del features
         train_loader = DataLoader(ds, batch_size=args.batch_size, shuffle=True, num_workers=args.workers)
-        val_loader = DataLoader(Images(table.iloc[vi], img, y[vi]), batch_size=args.batch_size, num_workers=args.workers)
-        model = build_model(len(order), len(TASKS[task]), ARCH).to(args.device)
+        val_ds = Images(table.iloc[vi], img, y[vi])
+        val_ds.cached = np.stack([val_ds[i][0][0].numpy() for i in range(len(val_ds))])
+        val_loader = DataLoader(val_ds, batch_size=args.batch_size, num_workers=args.workers)
+        model = build_model(len(order), len(TASKS[task]), arch).to(args.device)
+        parameter_count = sum(p.numel() for p in model.parameters())
+        print(task, 'architecture', arch, 'parameters', parameter_count, 'device', args.device, flush=True)
         loss_fn = compute_loss_multi_conti(len(TASKS[task])).to(args.device)
         optimizer = torch.optim.AdamW(list(model.parameters()) + list(loss_fn.parameters()),
                                       lr=args.lr, weight_decay=.01, betas=(.9, .999))
@@ -252,6 +268,7 @@ def train(args):
         output = Path(args.output); output.mkdir(parents=True, exist_ok=True)
         history, best = [], -float('inf')
         for epoch in range(args.epochs):
+            started = time.monotonic()
             model.train(); losses = []
             for x, target, _ in train_loader:
                 optimizer.zero_grad()
@@ -266,14 +283,18 @@ def train(args):
             if any(r is None for r in corr):
                 raise ValueError('Validation correlation undefined; check constant targets/predictions.')
             score = float(np.mean(corr))
-            record = {'epoch': epoch + 1, 'loss': float(np.mean(losses)), 'validation_r': corr}
+            record = {'epoch': epoch + 1, 'loss': float(np.mean(losses)), 'validation_r': corr,
+                      'seconds': time.monotonic() - started}
             history.append(record); print(task, record, flush=True)
             if np.isfinite(score) and score > best:
                 best = score
-                b = dict(format_version=1, task=task, targets=TASKS[task], architecture=ARCH,
+                b = dict(format_version=1, task=task, targets=TASKS[task], architecture=arch,
                          state_dict={k: v.detach().cpu() for k, v in model.state_dict().items()},
                          shift_index=torch.from_numpy(order), train_mean=torch.from_numpy(mean),
                          train_std=torch.from_numpy(std), source='unified training', seed=args.seed,
+                         parameter_count=parameter_count,
+                         training_config=dict(epochs=args.epochs, warmup_epochs=args.warmup_epochs,
+                                              lr=args.lr, batch_size=args.batch_size, device=args.device),
                          train_ids=table.iloc[ti].eid.tolist(), validation_ids=table.iloc[vi].eid.tolist(),
                          train_images=table.iloc[ti].image.tolist(), validation_images=table.iloc[vi].image.tolist(),
                          epoch=epoch + 1, validation_r=corr, **mask_payload(img))
@@ -281,6 +302,8 @@ def train(args):
             (output / f'{task}_history.json').write_text(json.dumps(history, indent=2))
         if best == -float('inf'):
             raise RuntimeError('No finite validation correlation; no checkpoint selected.')
+        (output / f'{task}_complete.json').write_text(json.dumps(dict(epochs=args.epochs,
+            best_validation_r=best, parameter_count=parameter_count, device=args.device), indent=2))
 
 
 def run(args):
@@ -302,6 +325,7 @@ def run(args):
     testing.checkpoints = training.output
     testing.output = str(out / 'test_predictions.csv')
     predict(testing)
+    (out / 'COMPLETE.json').write_text(json.dumps({'training': 'complete', 'held_out_evaluation': 'complete'}, indent=2))
 
 
 def main():
@@ -323,6 +347,7 @@ def main():
             s.add_argument('--warmup-epochs', type=int, default=5)
             s.add_argument('--lr', type=float, default=1e-4)
             s.add_argument('--seed', type=int, default=42)
+            s.add_argument('--model-size', choices=['original', 'small'], default='original')
             if name == 'run':
                 s.add_argument('--train-count', type=int)
                 s.add_argument('--val-count', type=int)

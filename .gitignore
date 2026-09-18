@@ -6,3 +6,6 @@ __pycache__/
 runs/
 smoke_run*/
 my_example/
+
+# Reviewed, de-identified public inference bundles
+!pretrained/**/*.pt

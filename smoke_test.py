@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parent
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', default='smoke_run')
+    p.add_argument('--model-size', choices=['original', 'small'], default='original')
     args = p.parse_args()
     out = Path(args.output).resolve()
     if out.exists():
@@ -26,7 +27,8 @@ def main():
     call('make_example.py', '--output', out / 'data')
     call('pipeline.py', 'run', '--manifest', out / 'data/subjects.csv',
          '--masks', out / 'data/masks', '--output', out / 'experiment',
-         '--train-count', 12, '--val-count', 4, '--epochs', 2, '--warmup-epochs', 1)
+         '--train-count', 12, '--val-count', 4, '--epochs', 2, '--warmup-epochs', 1,
+         '--model-size', args.model_size)
     exp = out / 'experiment'
     split = pd.read_csv(exp / 'split_manifest.csv')
     assert split['split'].value_counts().to_dict() == {'train': 12, 'val': 4, 'test': 4}
@@ -52,7 +54,7 @@ def main():
     assert bad.returncode != 0 and 'overlap' in bad.stderr and not (out / 'should_not_exist.csv').exists()
     report = dict(status='passed', initialization='random; no existing checkpoint read for training',
                   models=['masked', 'width'], epochs_per_model=2, subjects={'train':12, 'val':4, 'test':4},
-                  architecture={'patch_size':256, 'depth':18, 'embed_dim':128, 'num_heads':8},
+                  architecture=b['architecture'],
                   best_model_reload_identical=True, train_test_overlap_rejected=True,
                   test_metrics=list(metrics), device='cpu', synthetic_data=True)
     (out / 'smoke_report.json').write_text(json.dumps(report, indent=2))

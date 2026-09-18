@@ -1,0 +1,9 @@
+{
+  "cohorts": [
+    "ukb",
+    "adni"
+  ],
+  "checkpoints": 4,
+  "training_and_test_verified": true,
+  "public_reload_verified": true
+}

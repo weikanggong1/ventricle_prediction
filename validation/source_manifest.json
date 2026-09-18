@@ -18,5 +18,6 @@
     }
   ],
   "packaged_subject_data": "synthetic only",
-  "pretrained_weights": false
+  "pretrained_weights": true,
+  "pretrained_source": "CPU retraining from random initialization; see performance/report.json"
 }
