@@ -1,0 +1,22 @@
+{
+  "source_files": [
+    {
+      "name": "train_transformer_t1_orig_masked_20260206.ipynb",
+      "sha256": "a41c16c993ca86597f5064de134db55d0a6c911702e7c289fd6bb4bf19f77e98"
+    },
+    {
+      "name": "train_transformer_t1_orig_Width_20260206.ipynb",
+      "sha256": "6b2cfb40db3dab7d40d318ad42304866d67c305b984cf847f513cee93af6d2ff"
+    },
+    {
+      "name": "model_multimodal.py",
+      "sha256": "d4ce70d9e825ed4500265564349553ede7ee8d200d6e2a7e6504e9c8931ce1c5"
+    },
+    {
+      "name": "utils.py",
+      "sha256": "b538044f3424e5e81a23502d851a7c40498085a75169b487e9ed1d7c0f903764"
+    }
+  ],
+  "packaged_subject_data": "synthetic only",
+  "pretrained_weights": false
+}

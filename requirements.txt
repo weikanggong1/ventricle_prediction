@@ -1,0 +1,7 @@
+# Versions verified on gpucw1; install the appropriate PyTorch build for your machine.
+torch==2.5.1
+numpy==1.26.4
+nibabel==5.4.0
+pandas==2.2.3
+einops==0.8.2
+rotary-embedding-torch==0.8.9

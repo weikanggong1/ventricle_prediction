@@ -1,0 +1,31 @@
+{
+  "status": "passed",
+  "initialization": "random; no existing checkpoint read for training",
+  "models": [
+    "masked",
+    "width"
+  ],
+  "epochs_per_model": 2,
+  "subjects": {
+    "train": 12,
+    "val": 4,
+    "test": 4
+  },
+  "architecture": {
+    "patch_size": 256,
+    "depth": 18,
+    "embed_dim": 128,
+    "num_heads": 8
+  },
+  "best_model_reload_identical": true,
+  "train_test_overlap_rejected": true,
+  "test_metrics": [
+    "EI",
+    "z-EI",
+    "BVR_AC",
+    "BVR_PC",
+    "Width"
+  ],
+  "device": "cpu",
+  "synthetic_data": true
+}

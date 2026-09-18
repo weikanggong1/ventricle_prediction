@@ -1,0 +1,12 @@
+test_annotations_and_ids (test_pipeline.Contracts.test_annotations_and_ids) ... ok
+test_checkpoint_reload_and_permutation (test_pipeline.Contracts.test_checkpoint_reload_and_permutation) ... ok
+test_invalid_images (test_pipeline.Contracts.test_invalid_images) ... ok
+test_metrics (test_pipeline.Contracts.test_metrics) ... ok
+test_normalization_and_grid (test_pipeline.Contracts.test_normalization_and_grid) ... ok
+test_split_and_holdout (test_pipeline.Contracts.test_split_and_holdout) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 1.367s
+
+OK
+attention mode is flash
