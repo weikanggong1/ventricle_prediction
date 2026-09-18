@@ -4,7 +4,7 @@ We provide four pretrained checkpoints: separate UKB and ADNI models for the fou
 
 The small architecture uses patch_size=512, embed_dim=64, depth=4 (five Transformer blocks), and four attention heads. Each model was trained for 50 epochs; the checkpoint was selected by mean validation Pearson r. Test results were not used for model selection or hyperparameter tuning.
 
-UKB labels are the available-reader means from the six-reader table; ADNI labels are the two-reader means from the R3 table. Seed=42; 70/15/15% split in original annotation row order. No images or subject-level labels, predictions, identifiers or paths are included in this release.
+UKB labels are the available-reader means from the six-reader table; ADNI labels are the two-reader means from the R3 table. Seed=42; 70/15/15% split in original annotation row order. No original participant images, subject-level labels or predictions, participant identifiers, or private paths are included in this release.
 
 | Cohort | Train | Validation | Test |
 |---|---:|---:|---:|
